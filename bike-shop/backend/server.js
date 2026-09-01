@@ -5,6 +5,8 @@ import cors from 'cors';
 import productRouter from './routes/productRoutes.js';
 import userRouter from './routes/userRoutes.js';
 import orderRouter from './routes/orderRoutes.js';
+import Product from './models/productModel.js';
+import products from './data/products.js';
 
 dotenv.config();
 
@@ -34,8 +36,33 @@ const connectDB = async () => {
   }
 };
 
+/**
+ * Seed default products on first boot (when the collection is empty).
+ * This avoids having to run `npm run seed` manually after each deployment.
+ */
+const seedProductsIfEmpty = async () => {
+  try {
+    const count = await Product.countDocuments();
+    if (count === 0) {
+      await Product.insertMany(products);
+      console.log(`Seeded ${products.length} default products`);
+    } else {
+      console.log(`Products already present (${count}), skipping seed`);
+    }
+  } catch (err) {
+    console.error('Error seeding products:', err.message);
+  }
+};
+
 const PORT = process.env.PORT || 5000;
 
-connectDB().then(() => {
+connectDB()
+  .then(async () => {
+    await seedProductsIfEmpty();
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  })
+  .catch((err) => {
+    console.error('Failed to start server:', err.message);
+    process.exit(1);
 });
+

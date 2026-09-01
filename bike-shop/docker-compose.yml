@@ -1,0 +1,61 @@
+version: "3.8"
+
+services:
+  # MongoDB database
+  mongo:
+    image: mongo:7
+    container_name: bikeshop-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bikeshop-net
+
+  # Backend API (Node.js + Express)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bikeshop-backend
+    restart: unless-stopped
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/bike-shop
+      - PORT=5000
+      - JWT_SECRET=${JWT_SECRET:-supersecretkey-change-me}
+    ports:
+      - "5000:5000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - bikeshop-net
+
+  # Frontend (React build served by nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Build-time arg so Vite injects the API base URL into the bundle.
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:5000/api}
+    container_name: bikeshop-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - bikeshop-net
+
+volumes:
+  mongo-data:
+
+networks:
+  bikeshop-net:
+    driver: bridge
+
